@@ -1,0 +1,510 @@
+#Important packages needed
+from Bio import SeqIO    #Biopython
+import pandas as pd
+import numpy as np
+import os
+import pickle
+from Bio.SeqUtils.ProtParam import ProteinAnalysis
+from math import log,floor
+df = pd.read_csv('data.csv')
+df
+Positive Cleavage Site	Sequence
+0	GYCL|IINN	MDFSRNLYDIGEQLDSEDLASLKFLSLDYIPQRKQEPIKDALMLFQ...
+1	IGRF|FGGD,VVHF|FKNI	MGNHAGKRELNAEKASTNSETNRGESEKKRNLGELSRTTSEDNEVF...
+2	FSFL|FVQG,GFSF|IMFT,FLFC|NVND,YSFW|LASL	MSARTAPRPQVLLLPLLLVLLAAAPAASKGCVCKDKGQCFCDGAKG...
+3	PDNE|AYEM	MDVFMKGLSKAKEGVVAAAEKTKQGVAEAAGKTKEGVLYVGSKTKE...
+4	VYGL|RSKS,KQNL|LAPQ	MRIAVICFCLLGITCAIPVKQADSGSSEEKQLYNKYPDAVATWLNP...
+...	...	...
+3683	DEAD|GSKH,DSID|SFET	MPPKTPRKTAATAAAAAAEPPAPPPPPPPEEDPEQDSGPEDLPLVR...
+3684	DDVD|TKKQ	MSDAAVDTSSEITTKDLKEKKEVVEEAENGRDAPANGNAENEENGE...
+3685	DQPD|YGQQ	MSDSGSYGQSGGEQQSYSTYGNPGSQGYGQASQSYSGYGQTTDSSY...
+3686	DQTD|GLGL	MAPHRPAPALLCALSLALCALSLPVRAATASRGASQAGAPQGRVPE...
+3687	MEVD|AAVV	MAAAAAAAAATNGTGGSSGMEVDAAVVPSVMACGVTGSVSVALHPL...
+3688 rows × 2 columns
+
+def RandomNumber(a,b):
+    return np.random.randint(a,b)
+negative_cleavage_sites = []
+for index,value in df.iterrows():
+    
+    seq = value[1]
+    seq_len = len(seq)
+    sliding_window = 16 
+    cleavage_sites = [site.split('|')[0] for site in value[0].split(',')]
+    cleavage_site_count = len(cleavage_sites)
+    
+    each_row_clea_sites = ''
+    down_sampling_strategy = 3
+    for each_count in range(cleavage_site_count*down_sampling_strategy):
+        
+        random_num = RandomNumber(sliding_window, seq_len - sliding_window)
+        cleavage_site_indexes = [seq.find(each_site) for each_site in cleavage_sites]
+        
+        while random_num in cleavage_site_indexes:
+            random_num = RandomNumber(sliding_window, seq_len-sliding_window)
+
+        neg_clea_site = seq[random_num:random_num+4] + '|' + seq[random_num+4:random_num+8]
+        
+        each_row_clea_sites += neg_clea_site + ','
+    
+    negative_cleavage_sites.append(each_row_clea_sites.rstrip(','))   
+    
+df['Negative Cleavage Site'] = negative_cleavage_sites
+df
+Positive Cleavage Site	Sequence	Negative Cleavage Site
+0	GYCL|IINN	MDFSRNLYDIGEQLDSEDLASLKFLSLDYIPQRKQEPIKDALMLFQ...	RINR|LDLL,YCLI|INNH,ISKC|KLDD
+1	IGRF|FGGD,VVHF|FKNI	MGNHAGKRELNAEKASTNSETNRGESEKKRNLGELSRTTSEDNEVF...	ELSR|TTSE,DNTF|KDRP,QDAH|PADP,ESLD|VMAS,GRFF|G...
+2	FSFL|FVQG,GFSF|IMFT,FLFC|NVND,YSFW|LASL	MSARTAPRPQVLLLPLLLVLLAAAPAASKGCVCKDKGQCFCDGAKG...	GTPG|AKGE,GFPG|LPGL,HGWI|SLWK,GTPG|SPGC,KMGE|P...
+3	PDNE|AYEM	MDVFMKGLSKAKEGVVAAAEKTKQGVAEAAGKTKEGVLYVGSKTKE...	KTVE|GAGS,TNVG|GAVV,EKTK|QGVA
+4	VYGL|RSKS,KQNL|LAPQ	MRIAVICFCLLGITCAIPVKQADSGSSEEKQLYNKYPDAVATWLNP...	AIPV|AQDL,EFHS|HEFH,SNDS|DDVD,KYPD|AVAT,DLNA|P...
+...	...	...	...
+3683	DEAD|GSKH,DSID|SFET	MPPKTPRKTAATAAAAAAEPPAPPPPPPPEEDPEQDSGPEDLPLVR...	ERLL|SEHP,DEVK|NVYF,PPAP|PPPP,QKKK|ELWG,VTSN|G...
+3684	DDVD|TKKQ	MSDAAVDTSSEITTKDLKEKKEVVEEAENGRDAPANGNAENEENGE...	EEEG|DGEE,VDEE|EEEG,GNAE|NEEN
+3685	DQPD|YGQQ	MSDSGSYGQSGGEQQSYSTYGNPGSQGYGQASQSYSGYGQTTDSSY...	GGDR|GGGY,NMES|SGSQ,YDEQ|SNYD
+3686	DQTD|GLGL	MAPHRPAPALLCALSLALCALSLPVRAATASRGASQAGAPQGRVPE...	LQVL|GPKP,DNER|SGRA,ERSG|RARV
+3687	MEVD|AAVV	MAAAAAAAAATNGTGGSSGMEVDAAVVPSVMACGVTGSVSVALHPL...	VARM|TATG,GEAT|MLFA,LIGK|QEGR
+3688 rows × 3 columns
+
+positive_cleavage_sequence = []
+for index,value in df.iterrows():
+    
+    sequence = value[1]
+    cleavage_sites = [site.split('|')[0] for site in value[0].split(',')]
+    cleavage_site_indexes = [sequence.find(each_site) for each_site in cleavage_sites]
+    
+    for each_index  in cleavage_site_indexes:
+        new_sequence = sequence[each_index-4:each_index+12]
+        positive_cleavage_sequence.append(new_sequence)
+        
+positive_labels = list(np.ones(len(positive_cleavage_sequence),dtype=int))
+positive_data = {'Cleavage Sequence':positive_cleavage_sequence,'Label':positive_labels}
+positive_df = pd.DataFrame(data = positive_data)
+positive_df
+Cleavage Sequence	Label
+0	SKPRGYCLIINNHNFA	1
+1	ILDSIGRFFGGDRGAP	1
+2	DENPVVHFFKNIVTPR	1
+3	LYSGFSFLFVQGNQRA	1
+4	PLYSGFSFLFVQGNQR	1
+...	...	...
+6632	TLQTDSIDSFETQRTP	1
+6633	DDEDDDVDTKKQKTDE	1
+6634	APSYDQPDYGQQDSYD	1
+6635	WRDPDQTDGLGLSYLS	1
+6636	GSSGMEVDAAVVPSVM	1
+6637 rows × 2 columns
+
+negative_cleavage_sequence = []
+for index,value in df.iterrows():
+    
+    sequence = value[1]
+    cleavage_sites = [site.split('|')[0] for site in value[2].split(',')]
+    cleavage_site_indexes = [sequence.find(each_site) for each_site in cleavage_sites]
+    for each_index in cleavage_site_indexes:
+        new_sequence = sequence[each_index-4:each_index+12]
+        negative_cleavage_sequence.append(new_sequence)
+        
+negative_labels = list(np.zeros(len(negative_cleavage_sequence),dtype=int))
+negative_data = {'Cleavage Sequence':negative_cleavage_sequence,'Label':negative_labels}
+negative_df = pd.DataFrame(data = negative_data)
+ negative_df
+Cleavage Sequence	Label
+0	ELLFRINRLDLLITYL	0
+1	KPRGYCLIINNHNFAK	0
+2	LQEEISKCKLDDDMNL	0
+3	RNLGELSRTTSEDNEV	0
+4	PGREDNTFKDRPSESD	0
+...	...	...
+19906	KGIRDNERSGRARVHV	0
+19907	IRDNERSGRARVHVSE	0
+19908	GVDHVARMTATGSGEN	0
+19909	DIINGEATMLFAELTY	0
+19910	VIGALIGKQEGRNIEV	0
+19911 rows × 2 columns
+
+final_df = pd.concat([negative_df,positive_df])
+final_df
+Cleavage Sequence	Label
+0	ELLFRINRLDLLITYL	0
+1	KPRGYCLIINNHNFAK	0
+2	LQEEISKCKLDDDMNL	0
+3	RNLGELSRTTSEDNEV	0
+4	PGREDNTFKDRPSESD	0
+...	...	...
+6632	TLQTDSIDSFETQRTP	1
+6633	DDEDDDVDTKKQKTDE	1
+6634	APSYDQPDYGQQDSYD	1
+6635	WRDPDQTDGLGLSYLS	1
+6636	GSSGMEVDAAVVPSVM	1
+26548 rows × 2 columns
+
+    Feature Encoding
+1. Sequence Based
+  1. Composition of k spaced amino acid pairs
+amino_acids = ['A','C','D','E','F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
+k_spaced_amino_acids = [first+second for first in amino_acids for second in amino_acids]
+K_SPACED_DATA = []
+sliding_window = 16
+for k in range(6):
+    N_total = sliding_window-(k+1)
+    for index,value in final_df.iterrows():
+        sequence = value[0]
+        len_sequence = len(sequence)
+        k_spaced_amino_acids_dict = dict()
+        for i in k_spaced_amino_acids:
+            k_spaced_amino_acids_dict[i] = 0
+        for first_residue in range(len_sequence-1):
+            final_residue = sequence[first_residue:first_residue+2]
+            k_spaced_amino_acids_dict[final_residue] += 1 
+            
+        K_SPACED_DATA.append([each/N_total for each in list(k_spaced_amino_acids_dict.values())])
+K_SPACED_DATA = np.array(K_SPACED_DATA).reshape(26548,2400)
+K_SPACED_DATA_columns = ['CKSAAP_'+residue+'_k'+str(j) for j in range(6) for residue in k_spaced_amino_acids]
+K_SPACED_DATA_df = pd.DataFrame(K_SPACED_DATA,columns=K_SPACED_DATA_columns)
+K_SPACED_DATA_df
+CKSAAP_AA_k0	CKSAAP_AC_k0	CKSAAP_AD_k0	CKSAAP_AE_k0	CKSAAP_AF_k0	CKSAAP_AG_k0	CKSAAP_AH_k0	CKSAAP_AI_k0	CKSAAP_AK_k0	CKSAAP_AL_k0	...	CKSAAP_YM_k5	CKSAAP_YN_k5	CKSAAP_YP_k5	CKSAAP_YQ_k5	CKSAAP_YR_k5	CKSAAP_YS_k5	CKSAAP_YT_k5	CKSAAP_YV_k5	CKSAAP_YW_k5	CKSAAP_YY_k5
+0	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0
+1	0.066667	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0
+2	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0
+3	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0
+4	0.000000	0.0	0.066667	0.0	0.0	0.0	0.0	0.066667	0.0	0.0	...	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0
+...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...
+26543	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.1	0.0	0.0
+26544	0.100000	0.0	0.000000	0.2	0.0	0.1	0.0	0.000000	0.0	0.0	...	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0
+26545	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0
+26546	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0
+26547	0.000000	0.0	0.100000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0
+26548 rows × 2400 columns
+
+ 
+2.Evoluntionary Features
+   1. AAC - Composition of 20 Amino Acid types
+amino_acids = ['A','C','D','E','F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
+AAC_DATA = []
+for index,value in final_df.iterrows():
+    sequence = value[0]
+    X = ProteinAnalysis(sequence)
+    AminoAcidDict = {'A':0,'C':0,'D':0,'E':0,'F':0,'G':0,'H':0,'I':0,'K':0,'L':0,'M':0,'N':0,'P':0,'Q':0,'R':0,'S':0,'T':0,'V':0,'W':0,'Y':0}
+    for each_residue in sequence:
+        count_each_residue = X.count_amino_acids()[each_residue]
+        AminoAcidDict[each_residue] = count_each_residue/16
+    AAC_DATA.append(list(AminoAcidDict.values()))
+ 
+acc_columns = ['AAC_' + each_amino for each_amino in amino_acids]
+aac_df = pd.DataFrame(AAC_DATA,columns = acc_columns)
+aac_df
+AAC_A	AAC_C	AAC_D	AAC_E	AAC_F	AAC_G	AAC_H	AAC_I	AAC_K	AAC_L	AAC_M	AAC_N	AAC_P	AAC_Q	AAC_R	AAC_S	AAC_T	AAC_V	AAC_W	AAC_Y
+0	0.0000	0.0000	0.0625	0.0625	0.0625	0.0000	0.0000	0.1250	0.0000	0.3750	0.0000	0.0625	0.0000	0.0000	0.1250	0.0000	0.0625	0.0000	0.0000	0.0625
+1	0.0625	0.0625	0.0000	0.0000	0.0625	0.0625	0.0625	0.1250	0.1250	0.0625	0.0000	0.1875	0.0625	0.0000	0.0625	0.0000	0.0000	0.0000	0.0000	0.0625
+2	0.0000	0.0625	0.1875	0.1250	0.0000	0.0000	0.0000	0.0625	0.1250	0.1875	0.0625	0.0625	0.0000	0.0625	0.0000	0.0625	0.0000	0.0000	0.0000	0.0000
+3	0.0000	0.0000	0.0625	0.1875	0.0000	0.0625	0.0000	0.0000	0.0000	0.1250	0.0000	0.1250	0.0000	0.0000	0.1250	0.1250	0.1250	0.0625	0.0000	0.0000
+4	0.0000	0.0000	0.1875	0.1250	0.0625	0.0625	0.0000	0.0000	0.0625	0.0000	0.0000	0.0625	0.1250	0.0000	0.1250	0.1250	0.0625	0.0000	0.0000	0.0000
+...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...
+26543	0.0000	0.0000	0.1250	0.0625	0.0625	0.0000	0.0000	0.0625	0.0000	0.0625	0.0000	0.0000	0.0625	0.1250	0.0625	0.1250	0.2500	0.0000	0.0000	0.0000
+26544	0.0000	0.0000	0.4375	0.1250	0.0000	0.0000	0.0000	0.0000	0.1875	0.0000	0.0000	0.0000	0.0000	0.0625	0.0000	0.0000	0.1250	0.0625	0.0000	0.0000
+26545	0.0625	0.0000	0.2500	0.0000	0.0000	0.0625	0.0000	0.0000	0.0000	0.0000	0.0000	0.0000	0.1250	0.1875	0.0000	0.1250	0.0000	0.0000	0.0000	0.1875
+26546	0.0000	0.0000	0.1875	0.0000	0.0000	0.1250	0.0000	0.0000	0.0000	0.1875	0.0000	0.0000	0.0625	0.0625	0.0625	0.1250	0.0625	0.0000	0.0625	0.0625
+26547	0.1250	0.0000	0.0625	0.0625	0.0000	0.1250	0.0000	0.0000	0.0000	0.0000	0.1250	0.0000	0.0625	0.0000	0.0000	0.1875	0.0000	0.2500	0.0000	0.0000
+26548 rows × 20 columns
+
+resulting_df = pd.concat([K_SPACED_DATA_df,aac_df],axis=1)
+resulting_df 
+CKSAAP_AA_k0	CKSAAP_AC_k0	CKSAAP_AD_k0	CKSAAP_AE_k0	CKSAAP_AF_k0	CKSAAP_AG_k0	CKSAAP_AH_k0	CKSAAP_AI_k0	CKSAAP_AK_k0	CKSAAP_AL_k0	...	AAC_M	AAC_N	AAC_P	AAC_Q	AAC_R	AAC_S	AAC_T	AAC_V	AAC_W	AAC_Y
+0	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0000	0.0625	0.0000	0.0000	0.1250	0.0000	0.0625	0.0000	0.0000	0.0625
+1	0.066667	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0000	0.1875	0.0625	0.0000	0.0625	0.0000	0.0000	0.0000	0.0000	0.0625
+2	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0625	0.0625	0.0000	0.0625	0.0000	0.0625	0.0000	0.0000	0.0000	0.0000
+3	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0000	0.1250	0.0000	0.0000	0.1250	0.1250	0.1250	0.0625	0.0000	0.0000
+4	0.000000	0.0	0.066667	0.0	0.0	0.0	0.0	0.066667	0.0	0.0	...	0.0000	0.0625	0.1250	0.0000	0.1250	0.1250	0.0625	0.0000	0.0000	0.0000
+...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...
+26543	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0000	0.0000	0.0625	0.1250	0.0625	0.1250	0.2500	0.0000	0.0000	0.0000
+26544	0.100000	0.0	0.000000	0.2	0.0	0.1	0.0	0.000000	0.0	0.0	...	0.0000	0.0000	0.0000	0.0625	0.0000	0.0000	0.1250	0.0625	0.0000	0.0000
+26545	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0000	0.0000	0.1250	0.1875	0.0000	0.1250	0.0000	0.0000	0.0000	0.1875
+26546	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0000	0.0000	0.0625	0.0625	0.0625	0.1250	0.0625	0.0000	0.0625	0.0625
+26547	0.000000	0.0	0.100000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.1250	0.0000	0.0625	0.0000	0.0000	0.1875	0.0000	0.2500	0.0000	0.0000
+26548 rows × 2420 columns
+
+a = np.zeros(6637*3,dtype=int)
+b = np.ones(6637,dtype=int)
+labels = np.hstack((a,b))
+resulting_df['Label'] = labels
+resulting_df
+CKSAAP_AA_k0	CKSAAP_AC_k0	CKSAAP_AD_k0	CKSAAP_AE_k0	CKSAAP_AF_k0	CKSAAP_AG_k0	CKSAAP_AH_k0	CKSAAP_AI_k0	CKSAAP_AK_k0	CKSAAP_AL_k0	...	AAC_N	AAC_P	AAC_Q	AAC_R	AAC_S	AAC_T	AAC_V	AAC_W	AAC_Y	Label
+0	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0625	0.0000	0.0000	0.1250	0.0000	0.0625	0.0000	0.0000	0.0625	0
+1	0.066667	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.1875	0.0625	0.0000	0.0625	0.0000	0.0000	0.0000	0.0000	0.0625	0
+2	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0625	0.0000	0.0625	0.0000	0.0625	0.0000	0.0000	0.0000	0.0000	0
+3	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.1250	0.0000	0.0000	0.1250	0.1250	0.1250	0.0625	0.0000	0.0000	0
+4	0.000000	0.0	0.066667	0.0	0.0	0.0	0.0	0.066667	0.0	0.0	...	0.0625	0.1250	0.0000	0.1250	0.1250	0.0625	0.0000	0.0000	0.0000	0
+...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...
+26543	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0000	0.0625	0.1250	0.0625	0.1250	0.2500	0.0000	0.0000	0.0000	1
+26544	0.100000	0.0	0.000000	0.2	0.0	0.1	0.0	0.000000	0.0	0.0	...	0.0000	0.0000	0.0625	0.0000	0.0000	0.1250	0.0625	0.0000	0.0000	1
+26545	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0000	0.1250	0.1875	0.0000	0.1250	0.0000	0.0000	0.0000	0.1875	1
+26546	0.000000	0.0	0.000000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0000	0.0625	0.0625	0.0625	0.1250	0.0625	0.0000	0.0625	0.0625	1
+26547	0.000000	0.0	0.100000	0.0	0.0	0.0	0.0	0.000000	0.0	0.0	...	0.0000	0.0625	0.0000	0.0000	0.1875	0.0000	0.2500	0.0000	0.0000	1
+26548 rows × 2421 columns
+
+df_shuffled = resulting_df.sample(frac=1).reset_index(drop=True)
+df_shuffled
+CKSAAP_AA_k0	CKSAAP_AC_k0	CKSAAP_AD_k0	CKSAAP_AE_k0	CKSAAP_AF_k0	CKSAAP_AG_k0	CKSAAP_AH_k0	CKSAAP_AI_k0	CKSAAP_AK_k0	CKSAAP_AL_k0	...	AAC_N	AAC_P	AAC_Q	AAC_R	AAC_S	AAC_T	AAC_V	AAC_W	AAC_Y	Label
+0	0.0	0.000000	0.0	0.0	0.0	0.071429	0.0	0.000000	0.0	0.0	...	0.0000	0.0000	0.0625	0.1250	0.0000	0.0000	0.0625	0.0625	0.0000	0
+1	0.0	0.000000	0.0	0.0	0.0	0.000000	0.0	0.000000	0.0	0.0	...	0.0625	0.0000	0.0000	0.3125	0.0625	0.1250	0.0625	0.0000	0.0000	0
+2	0.0	0.090909	0.0	0.0	0.0	0.000000	0.0	0.000000	0.0	0.0	...	0.0000	0.0625	0.0000	0.1250	0.0625	0.0000	0.1250	0.0000	0.0000	1
+3	0.0	0.000000	0.0	0.0	0.0	0.000000	0.0	0.000000	0.0	0.0	...	0.0000	0.0000	0.0000	0.0000	0.0000	0.0000	0.2500	0.0000	0.0625	0
+4	0.0	0.000000	0.0	0.0	0.0	0.000000	0.0	0.000000	0.0	0.0	...	0.0625	0.3125	0.0000	0.0625	0.0000	0.0000	0.0000	0.0000	0.0000	1
+...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...
+26543	0.0	0.000000	0.0	0.0	0.0	0.066667	0.0	0.000000	0.0	0.0	...	0.0000	0.1250	0.0000	0.0000	0.0000	0.0625	0.1250	0.0000	0.0000	0
+26544	0.0	0.000000	0.0	0.0	0.0	0.090909	0.0	0.090909	0.0	0.0	...	0.0000	0.0625	0.0625	0.0625	0.0000	0.0625	0.0625	0.0000	0.0000	1
+26545	0.0	0.000000	0.0	0.0	0.0	0.000000	0.0	0.000000	0.0	0.0	...	0.0000	0.0625	0.0625	0.1250	0.1250	0.0000	0.0000	0.0000	0.0000	1
+26546	0.0	0.000000	0.0	0.0	0.0	0.000000	0.0	0.000000	0.0	0.0	...	0.1875	0.0000	0.0000	0.0000	0.0000	0.0625	0.2500	0.0000	0.0000	0
+26547	0.0	0.000000	0.0	0.0	0.0	0.000000	0.0	0.000000	0.0	0.0	...	0.0000	0.0625	0.0625	0.3125	0.0625	0.0625	0.0000	0.0000	0.0625	0
+26548 rows × 2421 columns
+
+Applying Support Vector Machine
+data = df_shuffled
+#Dividing the data to Train , Cross Validation , and Test  (60:20:20)
+train_data    = data[0:floor(floor(data.shape[0]*0.8)*0.75)]
+validate_data = data[floor(floor(data.shape[0]*0.8)*0.75):floor(data.shape[0]*0.8)]
+test_data     = data[floor(data.shape[0]*0.8):]
+
+print("Train Data Shape        :",train_data.shape)
+print("Cross Vlidartion Shape  :",validate_data.shape)
+print("Test Data Shape         :",test_data.shape)
+Train Data Shape        : (15928, 2421)
+Cross Vlidartion Shape  : (5310, 2421)
+Test Data Shape         : (5310, 2421)
+from sklearn.preprocessing import StandardScaler
+train_bow  = train_data.iloc[:,:-1].values
+validate_bow = validate_data.iloc[:,:-1].values
+test_bow = test_data.iloc[:,:-1].values
+train_data
+CKSAAP_AA_k0	CKSAAP_AC_k0	CKSAAP_AD_k0	CKSAAP_AE_k0	CKSAAP_AF_k0	CKSAAP_AG_k0	CKSAAP_AH_k0	CKSAAP_AI_k0	CKSAAP_AK_k0	CKSAAP_AL_k0	...	AAC_N	AAC_P	AAC_Q	AAC_R	AAC_S	AAC_T	AAC_V	AAC_W	AAC_Y	Label
+0	0.0	0.000000	0.000000	0.0	0.0	0.071429	0.0	0.0	0.0	0.0	...	0.0000	0.0000	0.0625	0.1250	0.0000	0.0000	0.0625	0.0625	0.0000	0
+1	0.0	0.000000	0.000000	0.0	0.0	0.000000	0.0	0.0	0.0	0.0	...	0.0625	0.0000	0.0000	0.3125	0.0625	0.1250	0.0625	0.0000	0.0000	0
+2	0.0	0.090909	0.000000	0.0	0.0	0.000000	0.0	0.0	0.0	0.0	...	0.0000	0.0625	0.0000	0.1250	0.0625	0.0000	0.1250	0.0000	0.0000	1
+3	0.0	0.000000	0.000000	0.0	0.0	0.000000	0.0	0.0	0.0	0.0	...	0.0000	0.0000	0.0000	0.0000	0.0000	0.0000	0.2500	0.0000	0.0625	0
+4	0.0	0.000000	0.000000	0.0	0.0	0.000000	0.0	0.0	0.0	0.0	...	0.0625	0.3125	0.0000	0.0625	0.0000	0.0000	0.0000	0.0000	0.0000	1
+...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...	...
+15923	0.0	0.000000	0.000000	0.0	0.0	0.000000	0.0	0.0	0.0	0.0	...	0.0000	0.0000	0.0000	0.0625	0.1875	0.0000	0.0625	0.0000	0.0000	0
+15924	0.0	0.000000	0.071429	0.0	0.0	0.000000	0.0	0.0	0.0	0.0	...	0.1250	0.0625	0.0000	0.0000	0.1250	0.0625	0.1250	0.0000	0.1250	0
+15925	0.0	0.000000	0.000000	0.0	0.0	0.000000	0.0	0.0	0.0	0.0	...	0.0625	0.0625	0.0625	0.0000	0.0625	0.0000	0.1250	0.0000	0.0625	0
+15926	0.0	0.000000	0.000000	0.0	0.0	0.000000	0.0	0.0	0.0	0.0	...	0.0000	0.1250	0.0000	0.0625	0.1250	0.0000	0.1875	0.0000	0.0625	0
+15927	0.0	0.000000	0.000000	0.0	0.0	0.000000	0.0	0.0	0.0	0.0	...	0.0000	0.0000	0.1250	0.0000	0.1250	0.0000	0.2500	0.0625	0.0000	0
+15928 rows × 2421 columns
+
+scaler = StandardScaler(with_mean=False)
+scaler.fit(train_bow)
+X_train = scaler.transform(train_bow)
+Y_train = train_data['Label']
+
+scaler = StandardScaler(with_mean=False)
+scaler.fit(validate_bow)
+X_cv = scaler.transform(validate_bow)
+Y_cv = validate_data['Label']
+
+scaler = StandardScaler(with_mean=False)
+scaler.fit(test_bow)
+X_test = scaler.transform(test_bow)
+Y_test  = test_data['Label']
+from sklearn.linear_model import SGDClassifier
+from tqdm import tqdm
+import seaborn as sns
+import matplotlib.pyplot as plt
+import scikitplot.metrics as skplot
+
+from tqdm import tqdm
+from math import log,floor
+from scipy import sparse
+# from termcolor import colored
+from scipy.stats import uniform
+
+from sklearn.model_selection import cross_val_score
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
+from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_curve
+from sklearn import metrics
+hyper_parameter = [10**-4, 10**-3, 10**-2, 10**-1, 10**0,10**1, 10**2,10**3, 10**4]
+from sklearn.calibration import CalibratedClassifierCV
+train_scores = []
+cv_scores = []
+
+for i in tqdm(hyper_parameter):
+    linear_svm = SGDClassifier(alpha=i, loss='hinge')
+    model = CalibratedClassifierCV(linear_svm)
+    model.fit(X_train, Y_train)
+    prob = model.predict_proba(X_train)
+    prob = prob [ : ,1]
+    score = roc_auc_score(Y_train, prob)
+    train_scores.append((i,score))
+    
+    prob = model.predict_proba(X_cv)
+    prob = prob [ : ,1]
+    score = roc_auc_score(Y_cv, prob)
+    cv_scores.append((i,score))
+#Sorted the list of tuples in descending order based upon second element i.e auc score   
+train_auc_scores = sorted(train_scores, key=lambda tup:tup[1],reverse=True)    
+cv_auc_scores = sorted(cv_scores, key=lambda tup:tup[1],reverse=True)
+
+#Performance plot
+plt.plot([x[1] for x in train_auc_scores],linestyle='-',label='Train AUC')
+plt.plot([x[1] for x in cv_auc_scores],linestyle='-',label='Validation AUC')
+
+plt.xlabel('Hyper Parameter Value')
+plt.ylabel('Area under ROC curve')
+plt.title("AUC vs Hyperparameter \n\n")
+plt.legend()
+plt.grid()
+plt.show() 
+
+#Optimal alpha value 
+optimal_alpha = cv_auc_scores[0][0]
+print("Optimal alpha value:",optimal_alpha)
+100%|██████████| 9/9 [00:55<00:00,  6.15s/it]
+
+Optimal alpha value: 10000
+#Test Accuracy 
+linear_kernel   = SGDClassifier(alpha=10**-3, loss='hinge')
+linear_kernel.fit(X_train,Y_train)
+pred = linear_kernel.predict(X_test)
+test_accuracy = accuracy_score(Y_test, pred)
+print("Test Accuracy :",test_accuracy*100)
+print('\n\n')
+
+#AUC on Test Data
+prob = linear_kernel.decision_function(X_test)
+#prob = prob[:,1]
+auc = roc_auc_score(Y_test,prob)
+print("AUC on Test Data:",auc)
+print('\n\n')
+
+#Classification Report
+print("Classification Report")
+print(classification_report(Y_test, pred))
+print('\n\n')
+
+#ROC PLOT
+prob = linear_kernel.decision_function(X_train)
+#prob = prob[:,1]
+fpr1,tpr1,thresholds = roc_curve(Y_train,prob)
+
+prob = linear_kernel.decision_function(X_test)
+#prob = prob[:,1]
+fpr2,tpr2,thresholds = roc_curve(Y_test,prob)
+
+plt.plot([0, 1], [0, 1], linestyle='-')
+plt.plot(fpr1, tpr1,linestyle='-',label='Train ROC')
+plt.plot(fpr2, tpr2,linestyle='-',label='Test ROC')
+plt.title("ROC CURVE")
+plt.xlabel('False Positive')
+plt.ylabel('True Positive')
+plt.legend()
+plt.grid()
+plt.show()
+#Confusion matrix
+print("Confusion matrix")
+skplot.plot_confusion_matrix(Y_test, pred)
+plt.show()
+Test Accuracy : 90.07532956685499
+
+
+
+AUC on Test Data: 0.9562998314365658
+
+
+
+Classification Report
+              precision    recall  f1-score   support
+
+           0       0.93      0.94      0.93      3961
+           1       0.81      0.79      0.80      1349
+
+    accuracy                           0.90      5310
+   macro avg       0.87      0.86      0.87      5310
+weighted avg       0.90      0.90      0.90      5310
+
+
+
+
+
+Confusion matrix
+
+linear_kernel = SGDClassifier(alpha=1)
+linear_kernel.fit(X_train,Y_train)
+weights = linear_kernel.coef_
+pos_class = np.argsort(weights).flatten().tolist()[::-1][:30]
+neg_class  = np.argsort(weights).flatten().tolist()[:30]
+feature_name = train_data.columns
+print("Important words in positive reviews\n")
+for i in pos_class:
+    print(feature_name[i])
+print("\n-----------------------------------------")
+print("\nImportant words in negative reviews\n")
+for i in neg_class:
+    print(feature_name[i])
+Important words in positive reviews
+
+CKSAAP_EN_k5
+CKSAAP_WG_k4
+CKSAAP_YD_k4
+CKSAAP_KF_k3
+CKSAAP_VD_k3
+CKSAAP_YT_k1
+CKSAAP_NF_k0
+CKSAAP_TL_k2
+CKSAAP_QE_k1
+CKSAAP_DC_k5
+CKSAAP_WS_k3
+CKSAAP_AV_k4
+CKSAAP_QN_k1
+CKSAAP_RR_k1
+CKSAAP_TP_k3
+CKSAAP_CL_k5
+CKSAAP_CS_k3
+CKSAAP_MH_k5
+CKSAAP_PM_k0
+CKSAAP_LQ_k5
+CKSAAP_AQ_k2
+CKSAAP_TI_k4
+CKSAAP_DK_k5
+CKSAAP_HH_k1
+CKSAAP_YL_k3
+CKSAAP_DP_k4
+CKSAAP_QC_k2
+CKSAAP_GL_k4
+CKSAAP_NN_k1
+CKSAAP_EA_k1
+
+-----------------------------------------
+
+Important words in negative reviews
+
+AAC_G
+AAC_A
+AAC_E
+AAC_P
+AAC_K
+AAC_L
+AAC_R
+AAC_S
+AAC_V
+AAC_T
+AAC_Q
+AAC_D
+AAC_I
+AAC_N
+AAC_F
+AAC_Y
+AAC_H
+AAC_C
+AAC_M
+AAC_W
+CKSAAP_FC_k3
+CKSAAP_DR_k4
+CKSAAP_TT_k3
+CKSAAP_RD_k3
+CKSAAP_CP_k2
+CKSAAP_QD_k5
+CKSAAP_TS_k2
+CKSAAP_RE_k1
+CKSAAP_WE_k3
+CKSAAP_EM_k0
