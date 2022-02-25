@@ -1,0 +1,2 @@
+# PREDICTION-OF-PROTEASE-SPECIFIC-SUBSTRATES-AND-CLEAVAGE-SITES
+In order to accurately predict the protease specific substrates and their cleavage sites, iProt-Sub is developed. We constructed protease specific prediction models for 38 proteases. SVR model accurately predicts and gives better performance. Cross-validation and benchmarking the dataset provides the performance of the iProt-Sub tool. Web Server is established which is used to predict the protease specific substrates and their cleavage sites.
